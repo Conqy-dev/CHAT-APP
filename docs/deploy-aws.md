@@ -9,14 +9,33 @@ One Ubuntu server runs everything: **nginx** (public, port 80) → **uvicorn/Fas
 3. **AMI:** *Ubuntu Server 24.04 LTS* (64-bit x86)
 4. **Instance type:** `t3.micro` (or `t2.micro`, whichever is marked *Free tier eligible*)
 5. **Key pair:** *Create new key pair* → name `conqchat-key`, type RSA, format `.pem` → it downloads. Keep it safe.
-6. **Network settings → Edit**, then make sure the security group has these inbound rules:
+6. **Network settings (firewall / inbound rules).** This box decides which ports the internet can reach. Don't click *Edit*; just set it up like this:
 
-   | Type | Port | Source | Why |
-   |---|---|---|---|
-   | SSH | 22 | Anywhere (0.0.0.0/0)* | Admin access to the server |
-   | HTTP | 80 | Anywhere (0.0.0.0/0) | Browsers reach nginx |
+   ```
+   Firewall (security groups)
+     (•) Create security group          ← keep this selected
+     ( ) Select existing security group
 
-   \*Use *My IP* instead if you'll connect from your own terminal. *Anywhere* is needed for the browser-based **EC2 Instance Connect**. Login still requires the key, so this is acceptable for a class project.
+     [✓] Allow SSH traffic from   [ Anywhere  0.0.0.0/0 ▾ ]   ← tick, choose "Anywhere"
+     [ ] Allow HTTPS traffic from the internet                 ← leave unticked
+     [✓] Allow HTTP traffic from the internet                  ← TICK THIS (off by default!)
+   ```
+
+   - **SSH (port 22)** lets you open a terminal on the server. Choose **Anywhere**, because the browser terminal (*EC2 Instance Connect*) connects from Amazon's addresses, not yours. Login still needs your key, so this is safe enough for a class project.
+   - **HTTP (port 80)** lets browsers open the chat app. **If you forget this box, the site will never load.**
+   - **HTTPS (port 443)** isn't used, because the app has no certificate.
+   - AWS shows a yellow warning about `0.0.0.0/0`. That's expected; continue.
+
+   This creates two inbound rules:
+
+   | Type | Protocol | Port | Source | Purpose |
+   |---|---|---|---|---|
+   | SSH | TCP | 22 | 0.0.0.0/0 | Admin terminal |
+   | HTTP | TCP | 80 | 0.0.0.0/0 | Browsers reach nginx → the chat app |
+
+   Ports 8000 (uvicorn) and 5432 (PostgreSQL) are **not** opened. They are only reachable from inside the server, which is the point.
+
+   **Fixing rules after launch** (e.g. you forgot HTTP): **EC2 → Instances →** click `conqchat` **→ Security** tab **→** click the security group link (`sg-…`) **→ Edit inbound rules → Add rule →** Type `HTTP`, Source `Anywhere-IPv4` **→ Save rules**. This takes effect immediately; no restart is needed.
 7. **Storage:** default 8 GB is enough → **Launch instance**.
 8. *(Recommended)* **EC2 → Elastic IPs → Allocate → Associate** it with the instance, so the public address doesn't change when you stop/start the server.
 
