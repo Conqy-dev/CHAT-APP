@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ConqChat — private, real-time messaging.">
+    <meta name="theme-color" content="#090b12">
+    <title>ConqChat</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/app.js" defer></script>
+</head>
+<body>
+
+    <!-- ===== LOGIN / REGISTER SCREEN ===== -->
+    <section id="auth-screen" class="auth-screen">
+        <div class="auth-card">
+            <div class="brand">
+                <div class="brand-icon">C</div>
+                <h1>Conq<span class="brand-accent">Chat</span></h1>
+            </div>
+            <p class="auth-subtitle">Your conversations, all in one place.</p>
+
+            <div class="auth-tabs">
+                <button id="login-tab" class="auth-tab active" type="button">Login</button>
+                <button id="register-tab" class="auth-tab" type="button">Register</button>
+            </div>
+
+            <form id="auth-form">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Enter your username"
+                       minlength="3" maxlength="24" autocomplete="username" required>
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter your password"
+                       minlength="8" maxlength="128" autocomplete="current-password" required>
+                <button type="submit" id="auth-submit">Login</button>
+            </form>
+
+            <p id="auth-error" class="error-message" role="alert"></p>
+            <p class="auth-footer">Private conversations. Real-time connections.</p>
+        </div>
+    </section>
+
+    <!-- ===== MAIN CHAT APP ===== -->
+    <main id="chat-screen" class="chat-screen hidden">
+
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <div class="sidebar-branding">
+                    <div class="small-brand-icon">C</div>
+                    <div>
+                        <h2>Conq<span class="brand-accent">Chat</span></h2>
+                        <p id="current-username"></p>
+                    </div>
+                </div>
+                <button id="logout-button" class="logout-button" type="button">Log out</button>
+            </header>
+
+            <div class="search-container">
+                <input type="search" id="user-search" placeholder="Search for people..." autocomplete="off" maxlength="24">
+                <div id="search-results" class="search-results"></div>
+            </div>
+
+            <div class="conversation-section">
+                <h3>Your conversations</h3>
+                <div id="conversation-list"><p class="empty-state">No conversations yet.</p></div>
+            </div>
+
+            <div class="sidebar-footer">
+                <span class="online-indicator"></span>
+                <span>ConqChat private messaging</span>
+            </div>
+        </aside>
+
+        <section class="chat-area">
+            <!-- Shown when no conversation is open -->
+            <div id="welcome-screen" class="welcome-screen">
+                <div class="welcome-icon">✉</div>
+                <h2>Welcome to ConqChat</h2>
+                <p>Select a conversation or search for someone to start messaging.</p>
+            </div>
+
+            <!-- The open conversation -->
+            <div id="active-chat" class="active-chat hidden">
+                <header class="chat-header">
+                    <button id="back-button" class="back-button" type="button" aria-label="Back to conversations">←</button>
+                    <div class="chat-user-avatar" id="chat-avatar">?</div>
+                    <div class="chat-user-details">
+                        <h3 id="chat-username"></h3>
+                        <p id="chat-status">Private conversation</p>
+                    </div>
+                </header>
+
+                <div id="messages-container" class="messages-container" aria-live="polite"></div>
+
+                <form id="message-form" class="message-form">
+                    <input type="text" id="message-input" placeholder="Write a message..." maxlength="4000" autocomplete="off" required>
+                    <button type="submit" id="send-button">Send</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+</body>
+</html>
