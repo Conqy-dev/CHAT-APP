@@ -1,0 +1,5 @@
+label,proto,conditions,count,size_bytes,interval_ms,received,lost,loss_pct,out_of_order,duplicates,rtt_min_ms,rtt_avg_ms,rtt_p95_ms,rtt_max_ms,duration_s,throughput_msg_s,throughput_kbit_s
+local_baseline,udp,"Windows 11 loopback, no impairment, 10 ms interval",100,100,10.0,100,0,0.0,0,0,0.12,0.23,0.33,0.41,1.039,96.2,77.0
+local_baseline,tcp,"Windows 11 loopback, no impairment, 10 ms interval",100,100,10.0,100,0,0.0,0,0,0.1,0.2,0.29,0.35,1.037,96.4,77.1
+local_burst,udp,"Windows 11 loopback, 2000 x 1000 B as fast as possible",2000,1000,0.0,2000,0,0.0,0,0,0.02,0.24,0.82,1.13,0.056,35678.5,285428.3
+local_burst,tcp,"Windows 11 loopback, 2000 x 1000 B as fast as possible",2000,1000,0.0,2000,0,0.0,0,0,0.02,0.05,0.14,0.3,0.038,53243.3,425946.5

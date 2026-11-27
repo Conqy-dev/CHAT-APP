@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="600" y="38" text-anchor="middle" font-size="24" font-weight="bold" fill="#111">ConqChat: Application Architecture</text>
+  <text x="600" y="62" text-anchor="middle" font-size="14" fill="#555">Every arrow is a TCP connection. The label gives the protocol, the framing and the server port.</text>
+
+  <!-- Clients -->
+  <text x="130" y="105" text-anchor="middle" font-size="16" font-weight="bold" fill="#1b5e20">CLIENTS</text>
+  <rect x="30" y="120" width="200" height="120" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="130" y="150" text-anchor="middle" font-size="16" font-weight="bold">Browser client</text>
+  <text x="130" y="173" text-anchor="middle" font-size="13">static/index.html, app.js</text>
+  <text x="130" y="195" text-anchor="middle" font-size="13">fetch() → REST API</text>
+  <text x="130" y="215" text-anchor="middle" font-size="13">WebSocket → live messages</text>
+
+  <rect x="30" y="300" width="200" height="120" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="130" y="330" text-anchor="middle" font-size="16" font-weight="bold">Terminal client</text>
+  <text x="130" y="353" text-anchor="middle" font-size="13">client/chat_client.py</text>
+  <text x="130" y="375" text-anchor="middle" font-size="13">Python socket module</text>
+  <text x="130" y="395" text-anchor="middle" font-size="13">NDJSON framing</text>
+
+  <rect x="30" y="480" width="200" height="90" rx="10" fill="#f1f8e9" stroke="#689f38" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="130" y="510" text-anchor="middle" font-size="15" font-weight="bold">Any TCP tool</text>
+  <text x="130" y="533" text-anchor="middle" font-size="13">netcat / framing_demo.py</text>
+  <text x="130" y="553" text-anchor="middle" font-size="13">(one JSON object per line)</text>
+
+  <!-- Server process -->
+  <rect x="330" y="90" width="560" height="590" rx="14" fill="#f5f7ff" stroke="#3949ab" stroke-width="2.5"/>
+  <text x="610" y="118" text-anchor="middle" font-size="17" font-weight="bold" fill="#1a237e">Server process: Python asyncio event loop (uvicorn)</text>
+
+  <rect x="360" y="135" width="240" height="75" rx="8" fill="#ffffff" stroke="#3949ab" stroke-width="1.8"/>
+  <text x="480" y="162" text-anchor="middle" font-size="15" font-weight="bold">HTTP REST API (FastAPI)</text>
+  <text x="480" y="184" text-anchor="middle" font-size="13">listening socket :8000</text>
+  <text x="480" y="201" text-anchor="middle" font-size="12" fill="#555">register, login, search, history</text>
+
+  <rect x="360" y="225" width="240" height="75" rx="8" fill="#ffffff" stroke="#3949ab" stroke-width="1.8"/>
+  <text x="480" y="252" text-anchor="middle" font-size="15" font-weight="bold">WebSocket endpoint /ws</text>
+  <text x="480" y="274" text-anchor="middle" font-size="13">same socket :8000 (HTTP Upgrade)</text>
+  <text x="480" y="291" text-anchor="middle" font-size="12" fill="#555">one TCP connection per browser tab</text>
+
+  <rect x="360" y="330" width="240" height="120" rx="8" fill="#fff8e1" stroke="#f9a825" stroke-width="2.2"/>
+  <text x="480" y="356" text-anchor="middle" font-size="15" font-weight="bold">Raw TCP chat server</text>
+  <text x="480" y="377" text-anchor="middle" font-size="13">app/tcp_server.py</text>
+  <text x="480" y="397" text-anchor="middle" font-size="13">listening socket 0.0.0.0:5000</text>
+  <text x="480" y="417" text-anchor="middle" font-size="13">LineFramer (app/framing.py)</text>
+  <text x="480" y="437" text-anchor="middle" font-size="12" fill="#555">keepalive · send timeout · logs</text>
+
+  <rect x="630" y="135" width="235" height="120" rx="8" fill="#ffffff" stroke="#3949ab" stroke-width="1.8"/>
+  <text x="747" y="162" text-anchor="middle" font-size="15" font-weight="bold">Chat logic</text>
+  <text x="747" y="184" text-anchor="middle" font-size="13">app/services.py</text>
+  <text x="747" y="206" text-anchor="middle" font-size="12" fill="#555">validation, access control,</text>
+  <text x="747" y="223" text-anchor="middle" font-size="12" fill="#555">save message → broadcast</text>
+
+  <rect x="630" y="290" width="235" height="120" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+  <text x="747" y="317" text-anchor="middle" font-size="15" font-weight="bold">ConnectionManager</text>
+  <text x="747" y="339" text-anchor="middle" font-size="13">user_id → set of open</text>
+  <text x="747" y="357" text-anchor="middle" font-size="13">connections (WS + TCP)</text>
+  <text x="747" y="381" text-anchor="middle" font-size="12" fill="#555">pushes new_message to every</text>
+  <text x="747" y="397" text-anchor="middle" font-size="12" fill="#555">device of both members</text>
+
+  <rect x="630" y="445" width="235" height="75" rx="8" fill="#ffffff" stroke="#757575" stroke-width="1.5"/>
+  <text x="747" y="472" text-anchor="middle" font-size="15" font-weight="bold">Connection / error log</text>
+  <text x="747" y="494" text-anchor="middle" font-size="13">logs/server.log (+ journald)</text>
+  <text x="747" y="511" text-anchor="middle" font-size="12" fill="#555">connect, login, FIN/RST, bad input</text>
+
+  <rect x="360" y="545" width="505" height="110" rx="8" fill="#fafafa" stroke="#9e9e9e" stroke-width="1.2"/>
+  <text x="378" y="570" font-size="14" font-weight="bold">Message format</text>
+  <text x="378" y="592" font-size="12.5" font-family="Consolas, monospace">TCP :5000  {"type":"send_message","conversation_id":4,"content":"Hi"}\n</text>
+  <text x="378" y="612" font-size="12.5" font-family="Consolas, monospace">WS  /ws    same JSON inside a WebSocket frame (length-prefixed)</text>
+  <text x="378" y="632" font-size="12.5" font-family="Consolas, monospace">Server →  {"type":"new_message","message":{...}} to both users</text>
+
+  <!-- Database -->
+  <rect x="960" y="250" width="210" height="150" rx="10" fill="#fce4ec" stroke="#ad1457" stroke-width="2"/>
+  <text x="1065" y="282" text-anchor="middle" font-size="16" font-weight="bold">PostgreSQL</text>
+  <text x="1065" y="305" text-anchor="middle" font-size="13">port 5432 (localhost)</text>
+  <text x="1065" y="333" text-anchor="middle" font-size="13">users</text>
+  <text x="1065" y="353" text-anchor="middle" font-size="13">conversations</text>
+  <text x="1065" y="373" text-anchor="middle" font-size="13">messages</text>
+
+  <!-- Arrows -->
+  <line x1="230" y1="160" x2="358" y2="170" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="292" y="150" text-anchor="middle" font-size="12" fill="#333">HTTP/TCP</text>
+  <line x1="230" y1="205" x2="358" y2="255" stroke="#333" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="292" y="262" text-anchor="middle" font-size="12" fill="#333">WebSocket/TCP</text>
+  <line x1="230" y1="360" x2="358" y2="380" stroke="#e65100" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="292" y="352" text-anchor="middle" font-size="12" fill="#e65100">TCP :5000</text>
+  <line x1="230" y1="520" x2="358" y2="420" stroke="#e65100" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+
+  <line x1="600" y1="172" x2="628" y2="185" stroke="#333" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="600" y1="262" x2="628" y2="220" stroke="#333" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="600" y1="380" x2="628" y2="240" stroke="#333" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="747" y1="255" x2="747" y2="288" stroke="#1565c0" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M630 330 C 610 320, 610 285, 602 280" fill="none" stroke="#1565c0" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <path d="M630 370 C 615 372, 612 380, 602 385" fill="none" stroke="#1565c0" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+
+  <line x1="865" y1="195" x2="958" y2="300" stroke="#ad1457" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="1065" y="240" text-anchor="middle" font-size="12" fill="#ad1457">SQL over TCP :5432</text>
+</svg>

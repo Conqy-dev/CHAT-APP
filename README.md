@@ -1,6 +1,6 @@
 # ConqChat
 
-A private, real-time chat application. Users create an account, search for other users, and exchange one-to-one messages that appear instantly over a persistent **WebSocket** connection. Messages are stored in **PostgreSQL**, so history is kept between visits.
+A multi-user, real-time chat application that demonstrates the TCP/IP transport layer (CSC 423 practical assignment). Users chat one-to-one from a **terminal client over raw TCP sockets** (port 5000, newline-delimited JSON) or from a **browser over WebSockets** (port 8000). Both kinds of client share the same accounts and conversations. Messages are stored in **PostgreSQL**.
 
 **Live demo:** http://YOUR-EC2-PUBLIC-IP *(see [Deployment](#deployment))*
 
@@ -81,6 +81,37 @@ docs/deploy-aws.md        step-by-step AWS deployment guide
    uvicorn app.main:app --reload
    ```
 5. Open **http://127.0.0.1:8000**. Tables are created automatically on first start. To chat with yourself, use a second browser or an Incognito window and log in as another user.
+
+## Terminal (raw TCP) client
+
+With the server running (it opens TCP port 5000 next to the web app):
+
+```powershell
+python client/chat_client.py --host 127.0.0.1 --port 5000
+/register alice password1      # or /login
+/chat bob                      # then type messages
+/ping   /history   /list   /quit (clean FIN)   /crash (abort with RST)
+```
+
+The message format and framing are documented in **[docs/protocol.md](docs/protocol.md)**. To watch framing live, run the server with `LOG_LEVEL=DEBUG`, then run `python tools/framing_demo.py`. Connection and error logs are written to `logs/server.log`.
+
+| Setting (.env) | Default | Meaning |
+|---|---|---|
+| `TCP_HOST` | `0.0.0.0` | interface the TCP chat server listens on |
+| `TCP_PORT` | `5000` | TCP chat port |
+| `LOG_LEVEL` | `INFO` | `DEBUG` also logs every read and its frames |
+| `LOG_FILE` | `logs/server.log` | connection/error log |
+
+## TCP experiments and TCP/UDP comparison
+
+- `tools/tcp_udp_compare.py`: echo server and client that send numbered messages over TCP or UDP and record received count, order, RTT and throughput (CSV in `experiments/results/`).
+- `experiments/run_experiments.sh`: runs the four Wireshark experiments (handshake, loss/retransmission with `tc netem`, FIN vs RST termination, flow control/performance) on Linux and saves `.pcap` files.
+
+## Report, diagrams and test log
+
+- Technical report: [docs/report/ConqChat_Technical_Report.pdf](docs/report/ConqChat_Technical_Report.pdf) (Word version alongside; rebuild with `node build_report.js`)
+- Application architecture diagram: [docs/diagrams/application-architecture.png](docs/diagrams/application-architecture.png)
+- Test log: [docs/test-log.md](docs/test-log.md)
 
 ## Testing
 

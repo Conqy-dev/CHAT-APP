@@ -30,3 +30,6 @@ __pycache__/
 Thumbs.db
 # Server logs
 logs/
+
+# Report build dependencies
+node_modules/

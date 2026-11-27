@@ -20,6 +20,9 @@ if [ ! -f "$APP_DIR/.env" ]; then
 SECRET_KEY=$(openssl rand -hex 32)
 DATABASE_URL=postgresql+psycopg://conqchat:$DB_PASSWORD@localhost:5432/private_chat
 COOKIE_SECURE=false
+TCP_HOST=0.0.0.0
+TCP_PORT=5000
+LOG_FILE=logs/server.log
 EOF
     chmod 600 "$APP_DIR/.env"   # only this user can read the secrets
 else
