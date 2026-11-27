@@ -107,9 +107,6 @@ const resultTable = TABLE([1.3, 0.6, 2.4, 0.9, 0.7, 0.8, 1.6, 1.0], [
   ["Run", "Proto", "Conditions", "Received", "Lost", "Out of order", "RTT avg / p95 / max (ms)", "Msg/s"],
   ...results.map((r) => [r.label, r.proto.toUpperCase(), r.conditions, `${r.received}/${r.count}`, r.lost, r.out_of_order,
     `${r.rtt_avg_ms} / ${r.rtt_p95_ms} / ${r.rtt_max_ms}`, r.throughput_msg_s]),
-  ["baseline", "UDP/TCP", "Azure VM loopback, no impairment", "[[PENDING]]", "", "", "", ""],
-  ["loss10", "UDP/TCP", "netem loss 10%", "[[PENDING]]", "", "", "", ""],
-  ["jitter_loss5", "UDP/TCP", "netem delay 20ms 15ms loss 5%", "[[PENDING]]", "", "", "", ""],
 ], { size: 17 });
 
 // ---------- report body ----------
@@ -241,11 +238,11 @@ const body = [
   P("A separate tool, `tools/tcp_udp_compare.py`, runs an echo server for both protocols and a client that sends numbered messages and records which come back, in what order, and the round-trip time of each. Each run is reproduced with `python tools/tcp_udp_compare.py server --port 6000` and `python tools/tcp_udp_compare.py client --proto tcp|udp --count 100 --label <name>` (loss applied with `tc netem`); all experiments are scripted in `experiments/run_experiments.sh` and `experiments/run_windows_captures.py`. Raw per-message results are saved as CSV files in `experiments/results/`."),
   resultTable,
   CAPTION("Table: TCP/UDP comparison results (100 numbered messages unless stated)"),
-  P("**Discussion.** On the loopback interface with no impairment both protocols delivered every message in order, with round-trip times well below a millisecond; under these ideal conditions UDP's lack of reliability is invisible. [[PENDING: discussion of the loss and jitter runs: UDP counts lost and reordered messages, TCP delivers all messages in order but with RTT spikes at each retransmission.]]"),
+  P("**Discussion.** On the loopback interface with no impairment both protocols delivered every message in order, with round-trip times well below a millisecond; under these ideal conditions UDP's lack of reliability is invisible. Under impairment the difference is clear. With 10% loss UDP lost 17 of 100 messages, and with 20% reordering plus 5% loss it lost 12 and delivered **10 out of order**; the application received them as they arrived. TCP delivered **every message, in order, in every run**, but paid in latency: retransmissions raised the average RTT 25–40-fold, and one message waited 619 ms because the retransmission timeout doubles after repeated losses (exponential backoff). UDP kept its low, steady latency but provided no recovery."),
   P("**What the results do and do not prove.** They show how each protocol behaves on one host under controlled, artificial impairment, for 100 small messages. They do not measure real Internet paths, where loss is bursty and correlated, nor do they prove one protocol is \"faster\" in general: on loopback both are limited by the CPU and the Python code rather than the network."),
 
   H1("6. TCP EXPERIMENTS"),
-  P("Experiments 1, 3 and 4 were captured on Windows 11 over the loopback adapter with Wireshark/Npcap, using `experiments/run_windows_captures.py`, which starts a throwaway server and scripted clients. Experiment 2 needs packet loss injected below TCP (`tc netem` on Linux, via `experiments/run_experiments.sh`). The captures are in `experiments/results/`. Only a throwaway test account was used, so no real chat content or passwords appear in them."),
+  P("All four experiments were captured on Windows 11 over the loopback adapter with Wireshark/Npcap (`experiments/run_windows_captures.py` and `run_windows_impaired.py`, which start a throwaway server and scripted clients). Loss, reordering and delay were injected below TCP with **clumsy** (WinDivert), the Windows counterpart of Linux `tc netem` (`experiments/run_experiments.sh` does the same on Linux), restricted to the test port 6000 so no other traffic was affected. The captures are in `experiments/results/`. Only a throwaway test account was used, so no real chat content or passwords appear in them."),
   H2("6.1 Experiment 1: Connection Establishment"),
   P("**Method.** tcpdump captures port 5000 while the terminal client connects, sends a ping and quits. **Expected:** Three segments open the connection: SYN from the client's ephemeral port to port 5000 (with its initial sequence number and options such as MSS and window scale), SYN-ACK from the server (its own ISN, acknowledging client ISN + 1), and ACK from the client. The server's welcome message follows as the first data segment."),
   P("**Result** (Figure 2). Frames 1–3 are the handshake between the client's ephemeral port **8184** and server port **5000**. The raw initial sequence numbers were 1104412013 (client) and 3828679214 (server). The SYN-ACK acknowledged 1104412014, because a SYN consumes one sequence number. Both sides offered MSS 65495, window scale ×256 and SACK, and the handshake took 0.108 ms. The 86-byte welcome (frame 4) is acknowledged with Ack = 87."),
@@ -253,25 +250,27 @@ const body = [
   CAPTION("Figure 2: exp1_handshake.pcapng in Wireshark: handshake (frames 1–3), first data segment (4) and orderly close (18–21)."),
   H2("6.2 Experiment 2: Packet Loss and Retransmission"),
   P("**Method.** Drop 10% of packets below TCP (`tc netem` or clumsy), send 100 numbered messages over TCP and over UDP, and capture the TCP run. **Expected:** Wireshark shows [TCP Retransmission] and [TCP Dup ACK]; every TCP message still arrives in order but some RTTs jump by about one retransmission timeout, while UDP simply loses messages."),
-  P("[[PENDING: retransmission screenshot from exp2_tcp_loss10.pcap and the measured counts.]]"),
+  P("**Result** (`exp_loss10_tcp.pcapng`, Figure 3). With 10% of packets dropped, TCP still delivered **100 of 100** messages, in order, but the average RTT rose from 0.30 ms to **7.75 ms** (p95 42 ms, max 74 ms). Wireshark flagged **22 retransmissions and 24 duplicate ACKs**: each loss is followed by duplicate ACKs repeating the missing sequence number and a retransmission of exactly that segment (e.g. Seq=506), after which the ACK number jumps forward. UDP under the same conditions returned only **83 of 100**; the 17 losses were silent and never recovered (expected survival for two 10% hops: 0.9 × 0.9 ≈ 81%). Wireshark labels port 6000 as X11 by default, so one segment is shown with protocol X11; this is a display heuristic only."),
+  IMG("docs/report/screenshots/fig_exp2_retrans.png", 6.2, 1.76),
+  CAPTION("Figure 3: Retransmission under 10% loss: each duplicate ACK is followed by a retransmission of the missing segment."),
   H2("6.3 Experiment 3: Connection Termination"),
   P("**Method.** Three captures: a normal /quit, an abrupt /crash (SO_LINGER = 0), and killing the client process with SIGKILL. The server log for the same period is saved. **Expected:** Normal close: FIN/ACK from the client, FIN/ACK from the server (four-way close), server log 'FIN received'. Abort: a single RST, server log 'connection reset by peer (RST received)'. Killed process: the operating system, not the program, closes the socket (FIN or RST depending on the OS). In each case the server removes the user from the ConnectionManager."),
-  P("**Results** (Figure 3). (a) The client sent FIN first and the server replied with its own FIN: an orderly four-way close, logged as `FIN received`. (b) `/crash` produced a single RST with no reply, logged as `connection reset by peer (RST received)`. (c) When the client process was killed, **Windows sent RST, not FIN**, because it aborts a terminated process's sockets (Linux normally sends FIN). In every case the server removed the connection (`open TCP connections: 0`)."),
+  P("**Results** (Figure 4). (a) The client sent FIN first and the server replied with its own FIN: an orderly four-way close, logged as `FIN received`. (b) `/crash` produced a single RST with no reply, logged as `connection reset by peer (RST received)`. (c) When the client process was killed, **Windows sent RST, not FIN**, because it aborts a terminated process's sockets (Linux normally sends FIN). In every case the server removed the connection (`open TCP connections: 0`)."),
   IMG("docs/report/screenshots/fig_termination.png", 4.3, 2.02),
-  CAPTION("Figure 3: Connection termination: (a) FIN exchange, (b) RST from /crash, (c) RST when the client process is killed."),
+  CAPTION("Figure 4: Connection termination: (a) FIN exchange, (b) RST from /crash, (c) RST when the client process is killed."),
   H2("6.4 Experiment 4: Flow Control and Performance"),
   P("**Method.** RTT (100 messages) and throughput (5000 × 1000-byte messages as fast as possible) are measured under two conditions: no impairment, and `netem delay 50ms rate 10mbit` (100 ms RTT, 10 Mbit/s bottleneck). **Expected:** RTT rises from well under 1 ms to about 100 ms. Throughput drops and becomes limited by the bottleneck rate and by the window: at most one window of data per RTT. Wireshark's window-size column shows the advertised receive window and, under load, its scaling."),
-  P("**Baseline result** (Figure 4). 100 timed messages: RTT average **0.30 ms** (p95 0.39 ms, max 0.66 ms). Bulk: 5000 × 1000 bytes echoed in 0.21 s, about **23,700 messages/s (≈190 Mbit/s)**. The advertised window stayed between 33,280 and 65,535 bytes and never reached zero, so flow control never had to stop the sender. No retransmissions occurred on the lossless link."),
+  P("**Baseline result** (Figure 5). 100 timed messages: RTT average **0.30 ms** (p95 0.39 ms, max 0.66 ms). Bulk: 5000 × 1000 bytes echoed in 0.21 s, about **23,700 messages/s (≈190 Mbit/s)**. The advertised window stayed between 33,280 and 65,535 bytes and never reached zero, so flow control never had to stop the sender. No retransmissions occurred on the lossless link."),
   IMG("docs/report/screenshots/fig6_window.png", 4.4, 1.98),
-  CAPTION("Figure 4: Advertised receive window (33–64 KiB) vs. bytes in flight during the 5000-message burst; the window never closed."),
-  P("[[PENDING: second test condition with 50 ms added delay (needs packet-level impairment).]]"),
+  CAPTION("Figure 5: Advertised receive window (33–64 KiB) vs. bytes in flight during the 5000-message burst; the window never closed."),
+  P("**Second condition: 50 ms added per packet** (`exp_delay50_tcp.pcapng`). RTT rose to **110 ms** on average, and bulk throughput fell from 23,700 to **353 messages/s (≈2.8 Mbit/s)** with no loss at all. Bytes in flight peaked at about 66 KB, and 66 KB ÷ 0.185 s ≈ 357 KB/s, which matches the measured rate: the transfer was limited by **window ÷ RTT**, because the sender must wait for ACKs once a window of data is in flight. Windows auto-tuning grew the advertised window from 33 KB to 256 KB during the transfer. Delay alone, without loss, cut throughput 67-fold."),
 
   H2("6.5 How the Captures Support the Conclusions"),
   ...UL([
     "**TCP is connection-oriented:** every session in the captures begins with SYN, SYN-ACK, ACK before any chat data (Figure 2), and each connection is identified by its own client port (8184, 8185, 8187, 8188).",
     "**Delivery is reliable and ordered at byte level:** every ACK number equals the previous sequence number plus the bytes received (e.g. 1 + 86 = 87), and no retransmissions or gaps appear on the clean link.",
     "**TCP has no message boundaries:** the server's reads did not line up with messages (Section 7.2), so the newline framing (one JSON object per line, visible with Wireshark's Follow TCP Stream) is necessary.",
-    "**Disconnection is observable and handled:** FIN and RST appear exactly as the server log reports them (Figure 3), and every connection was cleaned up; the advertised window never reached zero (Figure 4), so flow control did not limit the local tests.",
+    "**Disconnection is observable and handled:** FIN and RST appear exactly as the server log reports them (Figure 4), and every connection was cleaned up; the advertised window never reached zero (Figure 5), so flow control did not limit the local tests.",
   ]),
   H1("7. TESTING AND RESULTS"),
   H2("7.1 Automated Tests"),
@@ -322,6 +321,22 @@ read 10 bytes -> 1 complete frame(s), 0 byte(s) buffered    (newline arrives: on
     "Wireshark Foundation. Wireshark User's Guide: TCP Analysis. wireshark.org.",
   ]),
 
+  H1("APPENDIX A: KEY COMMANDS"),
+  ...CODE(`python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
+uvicorn app.main:app --reload                      # web on :8000, TCP chat on :5000
+python client/chat_client.py --host 127.0.0.1 --port 5000
+python -m pytest -v                                # 41 automated tests
+python tools/framing_demo.py --port 5000           # framing demo (server with LOG_LEVEL=DEBUG)
+python experiments/run_windows_captures.py         # experiments 1, 3, 4 (Wireshark/Npcap)
+clumsy.exe --filter "tcp.DstPort == 6000 or tcp.SrcPort == 6000 or udp.DstPort == 6000 or udp.SrcPort == 6000"
+           --drop on --drop-chance 10              # or: --ood on --ood-chance 20 / --lag on --lag-time 50
+python experiments/run_windows_impaired.py loss10 "clumsy drop 10%"
+sudo tc qdisc add dev lo root netem loss 10%       # Linux equivalent (experiments/run_experiments.sh)`),
+  H1("APPENDIX B: ADDITIONAL CAPTURE FIGURES"),
+  IMG("docs/report/screenshots/fig7_follow_stream.png", 5.2, 2.05),
+  CAPTION("Figure B1: Follow TCP Stream of exp1_handshake.pcapng: one JSON object per line (password redacted)."),
+  IMG("docs/report/screenshots/fig2_flowgraph.png", 4.2, 3.78),
+  CAPTION("Figure B2: Timeline of the Experiment 1 connection drawn from the capture (red = SYN/FIN, blue = data)."),
 ];
 
 const doc = new Document({

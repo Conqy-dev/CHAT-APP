@@ -5,3 +5,9 @@ local_burst,udp,"Windows 11 loopback, 2000 x 1000 B as fast as possible",2000,10
 local_burst,tcp,"Windows 11 loopback, 2000 x 1000 B as fast as possible",2000,1000,0.0,2000,0,0.0,0,0,0.02,0.05,0.14,0.3,0.038,53243.3,425946.5
 win_rtt_baseline,tcp,"Windows loopback, no impairment",100,100,10.0,100,0,0.0,0,0,0.16,0.3,0.39,0.66,1.038,96.3,77.0
 win_tput_baseline,tcp,"Windows loopback, 5000 x 1000 B as fast as possible",5000,1000,0.0,5000,0,0.0,0,0,0.04,0.11,0.24,1.8,0.211,23730.4,189843.6
+loss10,tcp,"clumsy drop 10% (both directions), Windows loopback",100,100,10.0,100,0,0.0,0,0,0.24,7.75,42.39,73.85,1.035,96.6,77.3
+loss10,udp,"clumsy drop 10% (both directions), Windows loopback",100,100,10.0,83,17,17.0,0,0,0.21,0.41,0.55,0.63,1.038,79.9,63.9
+reorder_loss5,tcp,"clumsy out-of-order 20% + drop 5%, Windows loopback",100,100,10.0,100,0,0.0,0,0,0.26,12.83,31.99,618.69,1.65,60.6,48.5
+reorder_loss5,udp,"clumsy out-of-order 20% + drop 5%, Windows loopback",100,100,10.0,88,12,12.0,10,0,0.24,4.15,11.38,31.99,1.041,84.5,67.6
+delay50,tcp,"clumsy lag 50 ms per packet, Windows loopback",100,100,10.0,100,0,0.0,0,0,103.92,109.93,149.46,190.79,1.189,84.1,67.3
+delay50_tput,tcp,"clumsy lag 50 ms per packet, Windows loopback",2000,1000,0.0,2000,0,0.0,0,0,150.85,185.54,190.1,374.44,5.664,353.1,2824.7
