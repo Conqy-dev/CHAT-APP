@@ -30,7 +30,7 @@ function runs(text, base = {}) {
 }
 
 const P = (text, opts = {}) => new Paragraph({ children: runs(text), spacing: { after: 160, line: 264 }, ...opts });
-const H1 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [new TextRun({ text, font: FONT })] });
+const H1 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, font: FONT })] });
 const H2 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, font: FONT })] });
 const H3 = (text) => new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, font: FONT })] });
 const UL = (items) => items.map((t) => new Paragraph({ numbering: { reference: "bullets", level: 0 }, children: runs(t), spacing: { after: 80, line: 264 } }));
@@ -114,13 +114,14 @@ const resultTable = TABLE([1.3, 0.6, 2.4, 0.9, 0.7, 0.8, 1.6, 1.0], [
 
 // ---------- report body ----------
 const body = [
-  new Paragraph({ pageBreakBefore: true, spacing: { before: 1800, after: 280 }, children: [new TextRun({ text: "TABLE OF CONTENTS", font: FONT, size: 46, bold: true })] }),
-  new TableOfContents("Table of Contents", { hyperlink: true, headingStyleRange: "1-2" }),
+  new Paragraph({ pageBreakBefore: true, spacing: { before: 0, after: 280 }, children: [new TextRun({ text: "TABLE OF CONTENTS", font: FONT, size: 46, bold: true })] }),
+  new TableOfContents("Table of Contents", { hyperlink: true, headingStyleRange: "1-1" }),
 
+  new Paragraph({ children: [new PageBreak()] }),
   H1("1. INTRODUCTION AND OBJECTIVES"),
   H2("1.1 Background"),
   P("Almost every networked application relies on the transport layer of the TCP/IP suite to move data between processes running on different machines. The network layer (IP) only delivers packets between hosts, on a best-effort basis: packets may be lost, duplicated or delivered out of order. The transport layer adds process-to-process delivery through port numbers and, in the case of TCP, a reliable, ordered, connection-oriented byte stream."),
-  P("A chat application is a good way to see these ideas in practice. Several users stay connected at the same time, messages must arrive complete and in order, and the server must notice when a user joins, leaves or disappears without warning. This report describes **ConqChat**, a multi-user chat application I designed, implemented, tested and prepared for cloud deployment, and explains how it uses TCP sockets, port numbers, connections and application-level message framing."),
+  P("A chat application is a good way to see these ideas in practice. Several users stay connected at the same time, messages must arrive complete and in order, and the server must notice when a user joins, leaves or disappears without warning. This report describes **ConqChat**, a multi-user chat application I designed, implemented, tested and prepared for cloud deployment, and explains how it uses TCP sockets, port numbers, connections and application-level message framing. The source code, tests and documentation are at **https://github.com/Conqy-dev/CHAT-APP**."),
   H2("1.2 Objectives"),
   P("The objectives of the work were to:"),
   ...OL([
@@ -130,11 +131,7 @@ const body = [
     "Evaluate TCP and UDP experimentally under normal and impaired network conditions.",
     "Deploy and validate the application on a public cloud platform, with appropriate security and cost controls.",
   ]),
-  H2("1.3 Source Code"),
-  P("All source code, tests, scripts and documentation are in the Git repository **https://github.com/Conqy-dev/CHAT-APP**. The README explains how to install, run, test and deploy the application."),
-
   H1("2. SYSTEM REQUIREMENTS"),
-  H2("2.1 Functional Requirements"),
   TABLE([0.6, 4.2, 2.2], [
     ["ID", "Requirement", "Where it is met"],
     ["F1", "A chat server that accepts and manages multiple client connections at the same time", "app/tcp_server.py, app/main.py"],
@@ -148,45 +145,14 @@ const body = [
     ["F9", "Server-side connection and error logs", "logs/server.log"],
   ]),
   GAP(),
-  H2("2.2 Non-Functional Requirements"),
-  ...UL([
-    "**Reliability:** messages are stored in a database before they are delivered, so history survives restarts.",
-    "**Responsiveness:** messages are pushed to recipients immediately, with no polling.",
-    "**Security:** passwords are hashed with Argon2; secrets are kept in environment variables and never committed; only the required ports are exposed.",
-    "**Portability:** the terminal client uses only the Python standard library, so it runs on any machine with Python 3.10 or later.",
-  ]),
-  H2("2.3 Software and Hardware"),
-  TABLE([2, 5], [
-    ["Component", "Technology"],
-    ["Server language and runtime", "Python 3.12+ with asyncio (event-driven, single-threaded I/O)"],
-    ["TCP server", "asyncio.start_server (raw TCP sockets), port 5000"],
-    ["Web server", "FastAPI on uvicorn, port 8000 (HTTP + WebSocket), behind nginx on port 80 in production"],
-    ["Database", "PostgreSQL via SQLAlchemy (SQLite for automated tests)"],
-    ["Clients", "Python terminal client (socket module); browser client (HTML, CSS, JavaScript)"],
-    ["Testing and analysis", "pytest, Wireshark, tcpdump, Linux tc netem"],
-    ["Version control", "Git and GitHub"],
-  ]),
-
   H1("3. SYSTEM ARCHITECTURE"),
   H2("3.1 Overview"),
   P("ConqChat is a client-server system. One server process runs an asyncio event loop that listens on two TCP ports at the same time: **port 5000** for the raw TCP chat protocol used by the terminal client, and **port 8000** for the web interface (HTTP and WebSocket). Both entry points share the same chat logic, the same PostgreSQL database and the same registry of live connections, so a user in a terminal can chat with a user in a browser."),
   IMG("docs/diagrams/application-architecture.png", 6.5, 3.9),
   CAPTION("Figure 1: Application architecture. Every arrow is a TCP connection."),
-  H2("3.2 Components"),
-  TABLE([1.9, 5.1], [
-    ["Component", "Responsibility"],
-    ["TCP chat server (app/tcp_server.py)", "Listens on port 5000, accepts connections, frames the byte stream into messages, runs commands, detects disconnections and logs every connection event."],
-    ["Framing (app/framing.py)", "LineFramer turns arbitrary chunks of bytes into complete newline-delimited JSON messages."],
-    ["Chat logic (app/services.py)", "Registration, login, search, conversations, validation, access control, saving messages and broadcasting them."],
-    ["ConnectionManager", "Maps each user id to the set of that user's open connections (TCP or WebSocket) and pushes new messages to all of them."],
-    ["Web API and WebSocket (app/main.py)", "REST endpoints for the browser and the /ws endpoint for live messages."],
-    ["Terminal client (client/chat_client.py)", "Connects with a TCP socket, sends framed JSON commands and prints messages as they arrive (one thread reads, the main thread handles typing)."],
-    ["PostgreSQL", "Stores users (hashed passwords), conversations and messages."],
-  ]),
-  GAP(),
-  H2("3.3 Data Model"),
+  H2("3.2 Data Model"),
   P("There are three tables. **users** (id, unique username, Argon2 password hash, created_at), **conversations** (id, user_one_id, user_two_id, created_at, with a uniqueness constraint so a pair of users has exactly one conversation, and the smaller id always stored first) and **messages** (id, conversation_id, sender_id, content, created_at, read_at). An index on (conversation_id, id) makes loading recent history fast."),
-  H2("3.4 Cloud Deployment Architecture"),
+  H2("3.3 Cloud Deployment Architecture"),
   P("[[PENDING: cloud deployment diagram (Figure 2) and description, to be added after deployment.]]"),
 
   H1("4. IMPLEMENTATION AND MESSAGE PROTOCOL"),
@@ -207,11 +173,6 @@ const body = [
     if len(self.buffer) > self.max_frame:
         raise FrameTooLarge
     return frames`),
-  P("The live demonstration tool `tools/framing_demo.py` sends two messages in a single write, and then one message split into three writes half a second apart, with Nagle's algorithm disabled (`TCP_NODELAY`). The server's debug log shows exactly how the reads mapped to frames:"),
-  ...CODE(`read 52 bytes -> 2 complete frame(s), 0 byte(s) buffered      (two messages, one read)
-read 7 bytes  -> 0 complete frame(s), 7 byte(s) buffered      (first part)
-read 9 bytes  -> 0 complete frame(s), 16 byte(s) buffered     (second part)
-read 10 bytes -> 1 complete frame(s), 0 byte(s) buffered      (message complete)`),
   P("The browser client uses WebSockets, which also run over a single TCP connection but have their own framing: every WebSocket frame starts with a header containing the payload length. The same JSON messages are carried inside those frames."),
   H2("4.3 Message Protocol"),
   P("Every message has a `type` field. The client sends commands; the server sends replies and pushes events at any time."),
@@ -227,17 +188,8 @@ read 10 bytes -> 1 complete frame(s), 0 byte(s) buffered      (message complete)
     ["send_message", "conversation_id, content (1–4000 chars)", "Yes", "new_message to both members"],
   ]),
   GAP(),
-  P("On connection the server sends `welcome`. Any problem produces `{\"type\": \"error\", \"message\": \"...\"}` and the connection stays open. An example exchange:"),
-  ...CODE(`S: {"type": "welcome", "message": "ConqChat TCP server. Send one JSON object per line."}
-C: {"type": "login", "username": "julius", "password": "********"}
-S: {"type": "login_ok", "user": {"id": 1, "username": "julius"}}
-C: {"type": "open", "username": "ada"}
-S: {"type": "conversation", "id": 4, "other_user": {"id": 2, "username": "ada"}}
-C: {"type": "send_message", "conversation_id": 4, "content": "Hello Ada"}
-S: {"type": "new_message", "message": {"id": 31, "conversation_id": 4, "sender_id": 1,
-    "sender_username": "julius", "content": "Hello Ada", "created_at": "...", "read_at": null}}`),
-  P("The full specification is in `docs/protocol.md` in the repository."),
-  H2("4.4 Connection Lifecycle"),
+  P("On connection the server sends `welcome`. Any problem produces `{\"type\": \"error\", \"message\": \"...\"}` and the connection stays open. The full specification with an example session is in `docs/protocol.md`."),
+    H2("4.4 Connection Lifecycle"),
   TABLE([1.7, 2.8, 2.5], [
     ["Event", "What happens on the wire", "Server behaviour"],
     ["Connect", "SYN, SYN-ACK, ACK", "Accept; enable TCP keepalive; send welcome; log address:port"],
@@ -254,16 +206,9 @@ S: {"type": "new_message", "message": {"id": 31, "conversation_id": 4, "sender_i
     "**Usernames:** 3–24 characters, letters, digits and underscore only, stored in lowercase. **Passwords:** 8–128 characters. **Messages:** 1–4000 characters after trimming. Rules are enforced on the server with Pydantic models, whatever the client sends.",
     "**Malformed input** (invalid UTF-8, text that isn't JSON, JSON that isn't an object, unknown command, missing fields, wrong types) gets a specific error reply. The test suite sends eight malformed inputs and checks the connection still works afterwards.",
     "**Access control:** a user can only read or post in conversations they belong to; commands other than register, login, ping and quit need a login.",
+    "**Security:** Argon2 password hashes, a signed session cookie, an Origin check on the WebSocket handshake, secrets in an untracked `.env` file, and message text rendered as plain text, never HTML.",
     "**Logging:** connections, logins, disconnections with their reason, malformed input and unexpected errors are written to the console and to a rotating log file, `logs/server.log`. With `LOG_LEVEL=DEBUG` every read and its frame count is also logged.",
   ]),
-  H2("4.6 Security Measures"),
-  ...UL([
-    "Passwords are stored only as Argon2 hashes.",
-    "The browser session is a signed cookie; the WebSocket handshake checks the Origin header to block cross-site WebSocket hijacking.",
-    "Secrets (database password, session key) are read from environment variables in a `.env` file that is excluded from Git; only `.env.example` is committed.",
-    "Message text is always displayed with textContent in the browser, never as HTML, which prevents script injection.",
-  ]),
-
   H1("5. TCP VERSUS UDP ANALYSIS"),
   H2("5.1 Why is TCP suitable for normal chat messages?"),
   P("A chat message is only useful if it arrives complete, exactly once and in the order it was written: a missing word, a repeated message or a reply that appears before the question all confuse a conversation. TCP provides these properties automatically. Chat messages are also small and not time-critical at the millisecond level, so the extra delay of a retransmission (typically tens to a few hundred milliseconds) is acceptable, whereas a lost message is not. TCP's connection also gives the server a natural notion of a user being online (an open socket), and a clear signal when they leave (FIN or RST)."),
@@ -328,20 +273,16 @@ S: {"type": "new_message", "message": {"id": 31, "conversation_id": 4, "sender_i
   H1("6. TCP EXPERIMENTS"),
   P("All four experiments are automated by `experiments/run_experiments.sh` and run on a Linux machine over its loopback interface, so no other network or user is affected. Packet captures (.pcap) are written to `experiments/results/` and analysed in Wireshark. Only throwaway test accounts are used, so no real chat content or passwords appear in the captures."),
   H2("6.1 Experiment 1: Connection Establishment"),
-  P("**Method.** tcpdump captures port 5000 while the terminal client connects, sends a ping and quits."),
-  P("**Expected observation.** Three segments open the connection: SYN from the client's ephemeral port to port 5000 (with its initial sequence number and options such as MSS and window scale), SYN-ACK from the server (its own ISN, acknowledging client ISN + 1), and ACK from the client. The server's welcome message follows as the first data segment."),
+  P("**Method.** tcpdump captures port 5000 while the terminal client connects, sends a ping and quits. **Expected:** Three segments open the connection: SYN from the client's ephemeral port to port 5000 (with its initial sequence number and options such as MSS and window scale), SYN-ACK from the server (its own ISN, acknowledging client ISN + 1), and ACK from the client. The server's welcome message follows as the first data segment."),
   P("[[PENDING: annotated Wireshark screenshot of exp1_handshake.pcap with client/server IP addresses, ports, sequence and acknowledgement numbers.]]"),
   H2("6.2 Experiment 2: Packet Loss and Retransmission"),
-  P("**Method.** `tc qdisc add dev lo root netem loss 10%` drops 10% of packets, then 100 numbered messages are sent over TCP and over UDP, with the TCP run captured."),
-  P("**Expected observation.** Wireshark marks [TCP Retransmission], [TCP Dup ACK] and possibly [TCP Fast Retransmission]; every message still arrives, in order, but affected messages show RTT spikes about one retransmission timeout (around 200 ms or more) long. The UDP run shows missing sequence numbers instead."),
+  P("**Method.** `tc qdisc add dev lo root netem loss 10%` drops 10% of packets, then 100 numbered messages are sent over TCP and over UDP, with the TCP run captured. **Expected:** Wireshark marks [TCP Retransmission], [TCP Dup ACK] and possibly [TCP Fast Retransmission]; every message still arrives, in order, but affected messages show RTT spikes about one retransmission timeout (around 200 ms or more) long. The UDP run shows missing sequence numbers instead."),
   P("[[PENDING: retransmission screenshot from exp2_tcp_loss10.pcap and the measured counts.]]"),
   H2("6.3 Experiment 3: Connection Termination"),
-  P("**Method.** Three captures: a normal /quit, an abrupt /crash (SO_LINGER = 0), and killing the client process with SIGKILL. The server log for the same period is saved."),
-  P("**Expected observation.** Normal close: FIN/ACK from the client, FIN/ACK from the server (four-way close), server log 'FIN received'. Abort: a single RST, server log 'connection reset by peer (RST received)'. Killed process: the operating system closes the socket and sends FIN, so the server sees a normal end of stream. In each case the server removes the user from the ConnectionManager."),
+  P("**Method.** Three captures: a normal /quit, an abrupt /crash (SO_LINGER = 0), and killing the client process with SIGKILL. The server log for the same period is saved. **Expected:** Normal close: FIN/ACK from the client, FIN/ACK from the server (four-way close), server log 'FIN received'. Abort: a single RST, server log 'connection reset by peer (RST received)'. Killed process: the operating system closes the socket and sends FIN, so the server sees a normal end of stream. In each case the server removes the user from the ConnectionManager."),
   P("[[PENDING: FIN and RST screenshots and the matching server log lines.]]"),
   H2("6.4 Experiment 4: Flow Control and Performance"),
-  P("**Method.** RTT (100 messages) and throughput (5000 × 1000-byte messages as fast as possible) are measured under two conditions: no impairment, and `netem delay 50ms rate 10mbit` (100 ms RTT, 10 Mbit/s bottleneck)."),
-  P("**Expected observation.** RTT rises from well under 1 ms to about 100 ms. Throughput drops and becomes limited by the bottleneck rate and by the window: at most one window of data per RTT. Wireshark's window-size column shows the advertised receive window and, under load, its scaling."),
+  P("**Method.** RTT (100 messages) and throughput (5000 × 1000-byte messages as fast as possible) are measured under two conditions: no impairment, and `netem delay 50ms rate 10mbit` (100 ms RTT, 10 Mbit/s bottleneck). **Expected:** RTT rises from well under 1 ms to about 100 ms. Throughput drops and becomes limited by the bottleneck rate and by the window: at most one window of data per RTT. Wireshark's window-size column shows the advertised receive window and, under load, its scaling."),
   P("[[PENDING: measured RTT and throughput table and a screenshot of the advertised window values.]]"),
 
   H1("7. TESTING AND RESULTS"),
@@ -402,12 +343,6 @@ S: {"type": "new_message", "message": {"id": 31, "conversation_id": 4, "sender_i
   ]),
 
   H1("APPENDIX A: KEY COMMANDS"),
-  H3("Running locally"),
-  ...CODE(`python -m venv .venv && .venv\\Scripts\\activate && pip install -r requirements.txt
-uvicorn app.main:app --reload                 # web on :8000, TCP chat on :5000
-python client/chat_client.py --host 127.0.0.1 --port 5000
-python -m pytest -v                           # automated tests
-python tools/framing_demo.py --port 5000      # framing demonstration (server with LOG_LEVEL=DEBUG)`),
   H3("TCP/UDP comparison"),
   ...CODE(`python tools/tcp_udp_compare.py server --host 127.0.0.1 --port 6000
 python tools/tcp_udp_compare.py client --proto udp --port 6000 --count 100 --label local_baseline
@@ -419,10 +354,6 @@ sudo tc qdisc replace dev lo root netem delay 50ms rate 10mbit # Experiment 4
 sudo tc qdisc del dev lo root                                # remove impairment
 sudo tcpdump -i lo -w exp1_handshake.pcap tcp port 5000
 bash experiments/run_experiments.sh                          # runs everything`),
-  H3("Inspecting sockets"),
-  ...CODE(`ss -tlnp                         # listening TCP sockets and their ports
-ss -tnp state established        # open connections (4-tuples)
-netstat -ano | findstr :5000     # Windows equivalent`),
 ];
 
 const doc = new Document({
@@ -434,7 +365,7 @@ const doc = new Document({
     paragraphStyles: [
       { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
         run: { font: FONT, size: 46, bold: true, color: "000000" },
-        paragraph: { spacing: { before: 1800, after: 280 }, keepNext: true, outlineLevel: 0 } },
+        paragraph: { spacing: { before: 480, after: 200 }, keepNext: true, outlineLevel: 0 } },
       { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
         run: { font: FONT, size: 34, bold: true, color: "000000" },
         paragraph: { spacing: { before: 320, after: 160 }, keepNext: true, outlineLevel: 1 } },
