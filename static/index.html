@@ -28,7 +28,9 @@
             <form id="auth-form">
                 <label for="username">Username</label>
                 <input type="text" id="username" placeholder="Enter your username"
-                       minlength="3" maxlength="24" autocomplete="username" required>
+                       minlength="3" maxlength="24" autocomplete="username" required
+                       pattern="\s*[A-Za-z0-9_]+\s*" title="Letters, numbers and underscores only (e.g. john_doe)"
+                       autocapitalize="none" autocorrect="off" spellcheck="false">
                 <label for="password">Password</label>
                 <input type="password" id="password" placeholder="Enter your password"
                        minlength="8" maxlength="128" autocomplete="current-password" required>

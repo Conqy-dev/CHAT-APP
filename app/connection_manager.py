@@ -1,33 +1,40 @@
-from fastapi import WebSocket, WebSocketDisconnect
+import logging
+
+log = logging.getLogger("conqchat")
 
 
 class ConnectionManager:
-    """Keeps track of every open WebSocket, grouped by user id.
-    A user can have several (e.g. a phone and a laptop logged in at once)."""
+    """Keeps track of every open live connection, grouped by user id.
+
+    A connection is anything with an async send_json(dict) method: a browser WebSocket
+    or a raw TCP client. A user can have several at once (phone, laptop, terminal...)."""
 
     def __init__(self):
-        self.active_connections: dict[int, set[WebSocket]] = {}
+        self.active_connections: dict[int, set] = {}
 
-    async def connect(self, user_id: int, websocket: WebSocket):
-        await websocket.accept()  # finishes the WebSocket handshake
-        self.active_connections.setdefault(user_id, set()).add(websocket)
+    def add(self, user_id: int, connection):
+        self.active_connections.setdefault(user_id, set()).add(connection)
 
-    def disconnect(self, user_id: int, websocket: WebSocket):
+    def disconnect(self, user_id: int, connection):
         sockets = self.active_connections.get(user_id)
         if sockets is None:
             return
-        sockets.discard(websocket)
+        sockets.discard(connection)
         if not sockets:
             del self.active_connections[user_id]
+
+    def online_count(self):
+        return sum(len(c) for c in self.active_connections.values())
 
     async def send_to_users(self, user_ids, message: dict):
         """Push a JSON event to every open connection of the given users."""
         for user_id in set(user_ids):
-            for websocket in list(self.active_connections.get(user_id, ())):
+            for connection in list(self.active_connections.get(user_id, ())):
                 try:
-                    await websocket.send_json(message)
-                except (WebSocketDisconnect, RuntimeError):
-                    self.disconnect(user_id, websocket)  # that connection is dead
+                    await connection.send_json(message)
+                except Exception as error:  # dead or stuck connection: drop it, keep serving the others
+                    log.warning("Dropping connection of user %s: %s", user_id, error or type(error).__name__)
+                    self.disconnect(user_id, connection)
 
 
 manager = ConnectionManager()  # one shared instance for the whole app

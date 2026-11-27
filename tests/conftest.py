@@ -21,10 +21,13 @@ def free_port():
 
 
 @pytest.fixture(scope="session")
-def base_url(tmp_path_factory):
-    port = free_port()
-    db = tmp_path_factory.mktemp("db") / "test.db"
-    env = {**os.environ, "DATABASE_URL": f"sqlite:///{db.as_posix()}", "SECRET_KEY": "test-secret"}
+def server(tmp_path_factory):
+    """Start the app once for the whole test run. Returns (http_base_url, tcp_port, log_file)."""
+    port, tcp_port = free_port(), free_port()
+    tmp = tmp_path_factory.mktemp("server")
+    log_file = tmp / "server.log"
+    env = {**os.environ, "DATABASE_URL": f"sqlite:///{(tmp / 'test.db').as_posix()}", "SECRET_KEY": "test-secret",
+           "TCP_HOST": "127.0.0.1", "TCP_PORT": str(tcp_port), "LOG_FILE": str(log_file), "LOG_LEVEL": "DEBUG"}
     server = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(port)],
         cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -39,9 +42,24 @@ def base_url(tmp_path_factory):
     else:
         server.kill()
         pytest.fail("Server did not start")
-    yield url
+    yield url, tcp_port, log_file
     server.terminate()
     server.wait()
+
+
+@pytest.fixture(scope="session")
+def base_url(server):
+    return server[0]
+
+
+@pytest.fixture(scope="session")
+def tcp_port(server):
+    return server[1]
+
+
+@pytest.fixture(scope="session")
+def server_log(server):
+    return server[2]
 
 
 _counter = itertools.count()
