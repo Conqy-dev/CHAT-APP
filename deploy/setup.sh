@@ -48,6 +48,20 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 
+echo "==> Host firewall: allow 80 (web) and 5000 (TCP chat)"
+# Oracle Cloud's Ubuntu images ship iptables rules that REJECT everything except SSH,
+# in addition to the cloud firewall. Insert ACCEPT rules before that REJECT and persist them.
+if sudo iptables -S INPUT 2>/dev/null | grep -q -- "-j REJECT"; then
+    for port in 80 5000; do
+        sudo iptables -C INPUT -p tcp --dport "$port" -m state --state NEW -j ACCEPT 2>/dev/null \
+            || sudo iptables -I INPUT 5 -p tcp --dport "$port" -m state --state NEW -j ACCEPT
+    done
+    sudo netfilter-persistent save > /dev/null 2>&1 || true
+    echo "    opened TCP 80 and 5000 in iptables"
+else
+    echo "    no restrictive host firewall found"
+fi
+
 echo "==> Checking the app responds through nginx"
 for _ in $(seq 1 30); do
     if curl -fsS http://127.0.0.1/health > /dev/null 2>&1; then
