@@ -136,8 +136,6 @@ const body = [
   CAPTION("Figure 1: Application architecture. Every arrow is a TCP connection."),
   H2("3.2 Data Model"),
   P("There are three tables. **users** (id, unique username, Argon2 password hash, created_at), **conversations** (id, user_one_id, user_two_id, created_at, with a uniqueness constraint so a pair of users has exactly one conversation, and the smaller id always stored first) and **messages** (id, conversation_id, sender_id, content, created_at, read_at). An index on (conversation_id, id) makes loading recent history fast."),
-  H2("3.3 Cloud Deployment Architecture"),
-  P("[[PENDING: cloud deployment diagram and description, to be added after deployment.]]"),
 
   H1("4. IMPLEMENTATION AND MESSAGE PROTOCOL"),
   H2("4.1 Sockets, Ports and Concurrency"),
@@ -285,10 +283,19 @@ read 7 bytes  -> 0 complete frame(s), 7 byte(s) buffered    (first part kept in 
 read 9 bytes  -> 0 complete frame(s), 16 byte(s) buffered
 read 10 bytes -> 1 complete frame(s), 0 byte(s) buffered    (newline arrives: one message)`),
   P("The complete test log, including manual and cloud tests, is in `docs/test-log.md`."),
-  P("[[PENDING: screenshots of two users chatting on the deployed system.]]"),
 
-  H1("8. CLOUD DEPLOYMENT"),
-  P("[[PENDING: cloud service selection and reasons, provisioning steps, firewall rules, TLS statement, secrets, start/restart/shutdown/cleanup, cost estimate and spending alert, public address and evidence of two users chatting.]]"),
+  H1("8. CLOUD DEPLOYMENT DESIGN"),
+  P("The deployment has been designed and scripted but not yet run, because none of the available cloud accounts permitted creating a virtual machine at the time of writing (Section 9.1). This chapter describes the prepared design."),
+  P("**Service choice.** A single small Linux virtual machine (1 vCPU, 1 GB RAM, Ubuntu 24.04) on AWS, Azure or Google Cloud. A VM was chosen over platform services because the chat server needs a **raw TCP port (5000)**, which HTTP-only platforms cannot expose, and full OS access is useful for `tcpdump` and `tc netem`. `deploy/setup.sh` installs Python, nginx and PostgreSQL, creates the database, writes the secrets and starts the app as a **systemd** service in one command."),
+  TABLE([1.1, 1.6, 4.3], [
+    ["Port", "Open to", "Purpose"],
+    ["22/TCP", "Administrator's IP only", "SSH administration (key authentication, no passwords)"],
+    ["80/TCP", "Internet", "nginx reverse proxy to the web app (HTTP + WebSocket upgrade)"],
+    ["5000/TCP", "Internet", "Raw TCP chat server for terminal clients"],
+    ["8000, 5432", "Closed", "uvicorn and PostgreSQL listen on 127.0.0.1 only and are never exposed"],
+  ]),
+  GAP(),
+  P("**Secrets.** The database password and session key are generated on the server into a `.env` file readable only by the app user (mode 600); `.env` is excluded from Git and only `.env.example` is committed. **TLS.** Not used: a trusted certificate requires a domain name, so traffic on ports 80 and 5000 would be plaintext, which is why only throwaway test accounts are used. With a domain, Caddy or `certbot --nginx` would add HTTPS on port 443, and the TCP socket could be wrapped with Python's `ssl` module. **Operation.** `sudo systemctl start|restart|stop conqchat`; updates with `git pull && bash deploy/setup.sh`; cleanup by deleting the VM (or its resource group/project) and its static IP. **Cost.** Free-tier eligible on new accounts; otherwise about US$7–14 per month (≈ US$0.25–0.45 per day) on pay-as-you-go, controlled with a US$5 budget alert and by deleting the resources after assessment."),
 
   H1("9. CHALLENGES AND LIMITATIONS"),
   H2("9.1 Challenges"),
