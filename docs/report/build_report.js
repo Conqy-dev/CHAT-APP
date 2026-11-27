@@ -102,7 +102,7 @@ function resultRows() {
     return Object.fromEntries(cols.map((c, i) => [c, v[i]]));
   });
 }
-const results = resultRows();
+const results = resultRows().filter((r) => r.label !== "local_burst"); // win_tput_baseline covers bulk throughput
 const resultTable = TABLE([1.3, 0.6, 2.4, 0.9, 0.7, 0.8, 1.6, 1.0], [
   ["Run", "Proto", "Conditions", "Received", "Lost", "Out of order", "RTT avg / p95 / max (ms)", "Msg/s"],
   ...results.map((r) => [r.label, r.proto.toUpperCase(), r.conditions, `${r.received}/${r.count}`, r.lost, r.out_of_order,
@@ -163,16 +163,6 @@ const body = [
   H2("4.2 Message Framing"),
   P("TCP provides an ordered **byte stream**, not separate messages. The sizes of the chunks returned by `read()` are decided by the network and the operating system, not by the sender: one read can return half a message, or several messages joined together. The application must therefore mark where each message ends. ConqChat uses **newline-delimited JSON (NDJSON)**: every message is one JSON object encoded as UTF-8 and followed by a single newline byte (0x0A)."),
   P("The receiver (`LineFramer.feed`) appends each chunk to a buffer, extracts every complete line, and keeps any incomplete remainder for the next read. This is safe because `json.dumps` always escapes a newline inside a string as the two characters \\n, so a raw newline byte can only mean the end of a message. To protect the server's memory, any frame larger than 64 KiB is rejected and that connection is closed."),
-  ...CODE(`def feed(self, data: bytes) -> list[bytes]:
-    self.buffer += data
-    frames = []
-    while (end := self.buffer.find(b"\\n")) != -1:
-        frame = bytes(self.buffer[:end])
-        del self.buffer[:end + 1]
-        frames.append(frame.rstrip(b"\\r"))
-    if len(self.buffer) > self.max_frame:
-        raise FrameTooLarge
-    return frames`),
   P("The browser client uses WebSockets, which also run over a single TCP connection but have their own framing: every WebSocket frame starts with a header containing the payload length. The same JSON messages are carried inside those frames."),
   H2("4.3 Message Protocol"),
   P("Every message has a `type` field. The client sends commands; the server sends replies and pushes events at any time."),
@@ -195,7 +185,7 @@ const body = [
     ["Connect", "SYN, SYN-ACK, ACK", "Accept; enable TCP keepalive; send welcome; log address:port"],
     ["Normal quit", "Client sends quit, receives bye, then closes: FIN/ACK in each direction", "read() returns end-of-stream; logged as 'client closed the connection (FIN received)'"],
     ["Crash / abort", "RST (the client's terminal command /crash sets SO_LINGER = 0)", "ConnectionResetError; logged as 'connection reset by peer (RST received)'"],
-    ["Process killed", "The OS closes the socket and normally sends FIN", "Same as a normal close, but without the quit/bye exchange"],
+    ["Process killed", "The OS closes the socket: RST on Windows (observed in Experiment 3), normally FIN on Linux", "Logged as RST or FIN accordingly; no quit/bye exchange"],
     ["Silent loss (power or network gone)", "Nothing arrives at all", "Keepalive probes after 60 s idle, every 10 s; connection dropped after 3 misses"],
     ["Client stops reading", "Client's receive window fills; server's send buffer fills", "drain() waits; client dropped after a 5 s send timeout so it can't stall others"],
   ]),
@@ -219,8 +209,7 @@ const body = [
     "**Reliable delivery:** every byte has a sequence number and is acknowledged; missing data is retransmitted after a timeout or after three duplicate ACKs (fast retransmit).",
     "**In-order delivery without duplicates:** the receiver reorders segments by sequence number and discards duplicates before passing data to the application.",
     "**Error detection:** a checksum covers the header and data; corrupted segments are discarded and later retransmitted.",
-    "**Flow control:** the receiver advertises a receive window so a fast sender cannot overrun a slow receiver.",
-    "**Congestion control:** the sender limits its rate (slow start, congestion avoidance) to avoid overloading the network.",
+    "**Flow and congestion control:** the receiver advertises a receive window so a fast sender cannot overrun it, and the sender limits its rate (slow start, congestion avoidance) to avoid overloading the network.",
   ]),
   P("TCP does **not** guarantee message boundaries, a maximum delay, or that data was processed by the receiving application. These are covered in Sections 5.8 and 5.9."),
   H2("5.3 What are the major differences between TCP and UDP?"),
@@ -264,26 +253,29 @@ const body = [
   ]),
   P("ConqChat handles this at the application level. Every message is **saved in the database before it is delivered**, the sender receives its own message back as confirmation, and a reconnecting client can request the conversation **history** to recover anything it missed (demonstrated in the reconnect test)."),
   H2("5.10 TCP versus UDP Practical Comparison"),
-  P("A separate tool, `tools/tcp_udp_compare.py`, runs an echo server for both protocols and a client that sends numbered messages and records which come back, in what order, and the round-trip time of each. The commands to reproduce each run are listed in Appendix A, and the raw per-message results are saved as CSV files in `experiments/results/`."),
+  P("A separate tool, `tools/tcp_udp_compare.py`, runs an echo server for both protocols and a client that sends numbered messages and records which come back, in what order, and the round-trip time of each. Each run is reproduced with `python tools/tcp_udp_compare.py server --port 6000` and `python tools/tcp_udp_compare.py client --proto tcp|udp --count 100 --label <name>` (loss applied with `tc netem`); all experiments are scripted in `experiments/run_experiments.sh` and `experiments/run_windows_captures.py`. Raw per-message results are saved as CSV files in `experiments/results/`."),
   resultTable,
   CAPTION("Table: TCP/UDP comparison results (100 numbered messages unless stated)"),
   P("**Discussion.** On the loopback interface with no impairment both protocols delivered every message in order, with round-trip times well below a millisecond; under these ideal conditions UDP's lack of reliability is invisible. [[PENDING: discussion of the loss and jitter runs: UDP counts lost and reordered messages, TCP delivers all messages in order but with RTT spikes at each retransmission.]]"),
   P("**What the results do and do not prove.** They show how each protocol behaves on one host under controlled, artificial impairment, for 100 small messages. They do not measure real Internet paths, where loss is bursty and correlated, nor do they prove one protocol is \"faster\" in general: on loopback both are limited by the CPU and the Python code rather than the network."),
 
   H1("6. TCP EXPERIMENTS"),
-  P("All four experiments are automated by `experiments/run_experiments.sh` and run on a Linux machine over its loopback interface, so no other network or user is affected. Packet captures (.pcap) are written to `experiments/results/` and analysed in Wireshark. Only throwaway test accounts are used, so no real chat content or passwords appear in the captures."),
+  P("Experiments 1, 3 and 4 were captured on Windows 11 over the loopback adapter with Wireshark/Npcap, using `experiments/run_windows_captures.py`, which starts a throwaway server and scripted clients. Experiment 2 needs packet loss injected below TCP (`tc netem` on Linux, via `experiments/run_experiments.sh`). The captures are in `experiments/results/`. Only a throwaway test account was used, so no real chat content or passwords appear in them."),
   H2("6.1 Experiment 1: Connection Establishment"),
   P("**Method.** tcpdump captures port 5000 while the terminal client connects, sends a ping and quits. **Expected:** Three segments open the connection: SYN from the client's ephemeral port to port 5000 (with its initial sequence number and options such as MSS and window scale), SYN-ACK from the server (its own ISN, acknowledging client ISN + 1), and ACK from the client. The server's welcome message follows as the first data segment."),
-  P("[[PENDING: annotated Wireshark screenshot of exp1_handshake.pcap with client/server IP addresses, ports, sequence and acknowledgement numbers.]]"),
+  P("**Result** (`exp1_handshake.pcapng`). Frames 1–3 are the handshake between the client 127.0.0.1:**8184** (ephemeral port) and the server 127.0.0.1:**5000**: [SYN] Seq=0, [SYN, ACK] Seq=0 Ack=1, [ACK] Seq=1 Ack=1. The raw initial sequence numbers were 1104412013 (client) and 3828679214 (server); the SYN-ACK acknowledged 1104412014, because a SYN consumes one sequence number. Both sides offered MSS 65495 (the loopback MTU), window scaling ×256 and SACK. The handshake completed in 0.108 ms. Frame 4 is the server's 86-byte welcome message ([PSH, ACK] Seq=1), and the client's next ACK is 87 = 1 + 86, showing byte-level acknowledgement. The session ended with the four-segment FIN exchange in frames 18–21."),
+  P("[[Insert annotated Wireshark screenshot of frames 1–4 (Statistics → Flow Graph).]]"),
   H2("6.2 Experiment 2: Packet Loss and Retransmission"),
   P("**Method.** `tc qdisc add dev lo root netem loss 10%` drops 10% of packets, then 100 numbered messages are sent over TCP and over UDP, with the TCP run captured. **Expected:** Wireshark marks [TCP Retransmission], [TCP Dup ACK] and possibly [TCP Fast Retransmission]; every message still arrives, in order, but affected messages show RTT spikes about one retransmission timeout (around 200 ms or more) long. The UDP run shows missing sequence numbers instead."),
   P("[[PENDING: retransmission screenshot from exp2_tcp_loss10.pcap and the measured counts.]]"),
   H2("6.3 Experiment 3: Connection Termination"),
   P("**Method.** Three captures: a normal /quit, an abrupt /crash (SO_LINGER = 0), and killing the client process with SIGKILL. The server log for the same period is saved. **Expected:** Normal close: FIN/ACK from the client, FIN/ACK from the server (four-way close), server log 'FIN received'. Abort: a single RST, server log 'connection reset by peer (RST received)'. Killed process: the operating system closes the socket and sends FIN, so the server sees a normal end of stream. In each case the server removes the user from the ConnectionManager."),
-  P("[[PENDING: FIN and RST screenshots and the matching server log lines.]]"),
+  P("**Results.** *Normal close* (`exp3_normal_close.pcapng`): the client sent [FIN, ACK] (frame 14, Seq=89), the server acknowledged it and sent its own [FIN, ACK] (frame 16), which the client acknowledged: an orderly four-way close started by the client. The server logged `reason=client closed the connection (FIN received)`. *Abort* (`exp3_abort_rst.pcapng`): a single [RST, ACK] from the client (frame 10, Win=0) with no reply; the server logged `reason=connection reset by peer (RST received)`. *Killed process* (`exp3_process_killed.pcapng`): after the handshake and welcome, the client's operating system sent **[RST, ACK]** (frame 6), not FIN. On Windows a terminated process's sockets are aborted, whereas on Linux the kernel normally closes them with FIN. In all three cases the server removed the connection and the log shows `open TCP connections: 0`."),
+  P("[[Insert screenshots of the FIN exchange and the RST, next to the matching server log lines in experiments/results/exp3_server_log.txt.]]"),
   H2("6.4 Experiment 4: Flow Control and Performance"),
   P("**Method.** RTT (100 messages) and throughput (5000 × 1000-byte messages as fast as possible) are measured under two conditions: no impairment, and `netem delay 50ms rate 10mbit` (100 ms RTT, 10 Mbit/s bottleneck). **Expected:** RTT rises from well under 1 ms to about 100 ms. Throughput drops and becomes limited by the bottleneck rate and by the window: at most one window of data per RTT. Wireshark's window-size column shows the advertised receive window and, under load, its scaling."),
-  P("[[PENDING: measured RTT and throughput table and a screenshot of the advertised window values.]]"),
+  P("**Baseline result** (`exp4_loopback.pcapng`, Windows loopback). 100 timed messages: RTT average **0.30 ms** (95th percentile 0.39 ms, maximum 0.66 ms). Bulk transfer: 5000 × 1000-byte messages echoed in 0.21 s, about **23,700 messages/s (≈190 Mbit/s)** of application data. Wireshark measured an average ACK round trip of 0.03 ms over 7,662 ACKs. The advertised window (scaled ×256) stayed between **33,280 and 65,535 bytes** and never reached zero, so the receiver kept up and flow control never had to stop the sender. 21 duplicate ACKs but no retransmissions were flagged, as expected on a lossless link."),
+  P("[[PENDING: second condition with 50 ms added delay; screenshot of Statistics → TCP Stream Graphs → Window Scaling.]]"),
 
   H1("7. TESTING AND RESULTS"),
   H2("7.1 Automated Tests"),
@@ -313,17 +305,14 @@ const body = [
   ...UL([
     "**Understanding that TCP has no message boundaries.** My first idea was to treat each read() as one message, which works on a quiet local network but breaks as soon as messages are sent quickly or are large. Writing the framer and testing it at every possible split point made the byte-stream nature of TCP concrete.",
     "**Cloud account restrictions.** The first cloud account I tried blocked virtual machines entirely through an organisation-level policy, so the deployment had to move to another provider.",
-    "**Local network testing.** Letting another device on a phone hotspot reach the laptop required binding the server to 0.0.0.0 and allowing the port through Windows Firewall.",
-    "**Mobile input.** Phone keyboards added capital letters, spaces or e-mail addresses to usernames; the form now disables autocorrect and explains the rule before submitting.",
   ]),
   H2("9.2 Limitations"),
   ...UL([
     "**No TLS:** traffic is not encrypted (see Section 8).",
     "**Single server process:** the ConnectionManager lives in memory, so the server cannot be scaled to several processes without a shared message broker.",
     "**Blocking database calls:** database queries run inside the event loop. This is fine for a class-sized load but would limit throughput under heavy use.",
-    "**One-to-one chat only:** group chat is not implemented.",
+    "**One-to-one chat only:** group chat, read receipts and offline notifications are not implemented.",
     "**Experiments on loopback:** loss and delay were emulated on one machine, which is controlled and repeatable but does not reproduce real Internet behaviour such as bursty loss.",
-    "**Delivery confirmation:** the sender sees its own message echoed back, but there are no read receipts or offline push notifications.",
   ]),
 
   H1("10. CONCLUSION"),
@@ -342,18 +331,6 @@ const body = [
     "Wireshark Foundation. Wireshark User's Guide: TCP Analysis. wireshark.org.",
   ]),
 
-  H1("APPENDIX A: KEY COMMANDS"),
-  H3("TCP/UDP comparison"),
-  ...CODE(`python tools/tcp_udp_compare.py server --host 127.0.0.1 --port 6000
-python tools/tcp_udp_compare.py client --proto udp --port 6000 --count 100 --label local_baseline
-python tools/tcp_udp_compare.py client --proto tcp --port 6000 --count 100 --label local_baseline
-python tools/tcp_udp_compare.py client --proto tcp --port 6000 --count 2000 --size 1000 --interval 0 --label local_burst`),
-  H3("Network impairment and capture (Linux)"),
-  ...CODE(`sudo tc qdisc add dev lo root netem loss 10%                # Experiment 2
-sudo tc qdisc replace dev lo root netem delay 50ms rate 10mbit # Experiment 4
-sudo tc qdisc del dev lo root                                # remove impairment
-sudo tcpdump -i lo -w exp1_handshake.pcap tcp port 5000
-bash experiments/run_experiments.sh                          # runs everything`),
 ];
 
 const doc = new Document({

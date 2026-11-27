@@ -1,0 +1,14 @@
+2026-11-27 19:32:54,709 INFO    TCP connect from 127.0.0.1:8183 (open TCP connections: 1)
+2026-11-27 19:32:55,662 INFO    TCP 127.0.0.1:8183 logged in as exp_user
+2026-11-27 19:32:56,611 INFO    TCP disconnect 127.0.0.1:8183 user=exp_user reason=client closed the connection (FIN received) (open TCP connections: 0)
+2026-11-27 19:33:00,222 INFO    TCP connect from 127.0.0.1:8184 (open TCP connections: 1)
+2026-11-27 19:33:01,164 INFO    TCP 127.0.0.1:8184 logged in as exp_user
+2026-11-27 19:33:03,127 INFO    TCP disconnect 127.0.0.1:8184 user=exp_user reason=client closed the connection (FIN received) (open TCP connections: 0)
+2026-11-27 19:33:09,291 INFO    TCP connect from 127.0.0.1:8185 (open TCP connections: 1)
+2026-11-27 19:33:10,236 INFO    TCP 127.0.0.1:8185 logged in as exp_user
+2026-11-27 19:33:11,201 INFO    TCP disconnect 127.0.0.1:8185 user=exp_user reason=client closed the connection (FIN received) (open TCP connections: 0)
+2026-11-27 19:33:16,482 INFO    TCP connect from 127.0.0.1:8187 (open TCP connections: 1)
+2026-11-27 19:33:17,425 INFO    TCP 127.0.0.1:8187 logged in as exp_user
+2026-11-27 19:33:18,385 INFO    TCP disconnect 127.0.0.1:8187 user=exp_user reason=connection reset by peer (RST received) (open TCP connections: 0)
+2026-11-27 19:33:23,643 INFO    TCP connect from 127.0.0.1:8188 (open TCP connections: 1)
+2026-11-27 19:33:26,548 INFO    TCP disconnect 127.0.0.1:8188 user=- reason=connection reset by peer (RST received) (open TCP connections: 0)
